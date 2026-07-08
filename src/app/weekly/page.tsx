@@ -57,10 +57,6 @@ export default function WeeklyPage() {
     setTasks((prev) => [...prev, task]);
   }
 
-  function handleChange(updated: Task) {
-    setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-  }
-
   function handleRemove(id: string) {
     setTasks((prev) => prev.filter((t) => t.id !== id));
   }
@@ -79,7 +75,7 @@ export default function WeeklyPage() {
       {loading ? (
         <p className="py-10 text-center text-sm text-white/40">불러오는 중...</p>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7">
+        <div className="flex gap-3 overflow-x-auto pb-2">
           {DAYS.map((day) => {
             const iso = taskDateISO(weekStartISO, day);
             const date = parseISO(iso);
@@ -88,7 +84,7 @@ export default function WeeklyPage() {
             return (
               <div
                 key={day}
-                className={`flex flex-col gap-2 rounded-2xl border p-3 ${
+                className={`flex w-[280px] shrink-0 flex-col gap-2 rounded-2xl border p-3 sm:w-[300px] ${
                   isToday(date) && isCurrentWeek
                     ? "border-white/40 bg-base-panel"
                     : "border-base-border bg-base-panel/60"
@@ -113,13 +109,7 @@ export default function WeeklyPage() {
                     </p>
                   ) : (
                     dayTasks.map((task) => (
-                      <TaskCard
-                        key={task.id}
-                        task={task}
-                        onChange={handleChange}
-                        onRemove={handleRemove}
-                        draggable={false}
-                      />
+                      <TaskCard key={task.id} task={task} onRemove={handleRemove} />
                     ))
                   )}
                 </div>

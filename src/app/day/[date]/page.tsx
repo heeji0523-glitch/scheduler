@@ -56,10 +56,6 @@ export default function DayDetailPage() {
     setTasks((prev) => [...prev, task]);
   }
 
-  function handleChange(updated: Task) {
-    setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-  }
-
   function handleRemove(id: string) {
     setTasks((prev) => prev.filter((t) => t.id !== id));
   }
@@ -103,13 +99,7 @@ export default function DayDetailPage() {
       ) : (
         <div className="space-y-2">
           {tasks.map((task) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              onChange={handleChange}
-              onRemove={handleRemove}
-              draggable={false}
-            />
+            <TaskCard key={task.id} task={task} onRemove={handleRemove} />
           ))}
         </div>
       )}

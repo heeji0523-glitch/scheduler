@@ -6,7 +6,7 @@ import KanbanColumn from "@/components/KanbanColumn";
 import QuickAddInput from "@/components/QuickAddInput";
 import WeekHeader from "@/components/WeekHeader";
 import { useAuthor } from "@/components/AuthorProvider";
-import { createTask, fetchTasks, patchTask } from "@/lib/api";
+import { createTask, fetchTasks } from "@/lib/api";
 import { DAY_LABEL_KO, STATUSES, Day, Status, Task } from "@/lib/types";
 import {
   addDays,
@@ -19,15 +19,19 @@ import {
   todayWeekStartISO,
 } from "@/lib/week";
 
+const todayISO = formatISO(new Date());
+
 export default function BoardPage() {
   const { author } = useAuthor();
   const [weekStartISO, setWeekStartISO] = useState(todayWeekStartISO());
   const [selectedDay, setSelectedDay] = useState<Day>(todayDay());
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [overdueTasks, setOverdueTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
 
   const weekInfo = useMemo(() => getWeekInfoFromISO(weekStartISO), [weekStartISO]);
   const isCurrentWeek = weekStartISO === todayWeekStartISO();
+  const isTodayTab = isCurrentWeek && selectedDay === todayDay();
 
   useEffect(() => {
     let cancelled = false;
@@ -44,25 +48,56 @@ export default function BoardPage() {
     };
   }, [weekStartISO]);
 
+  // Unfinished tasks whose day has already passed "carry over" onto today's
+  // tab so nothing gets forgotten just because its original day ended.
+  useEffect(() => {
+    let cancelled = false;
+    fetchTasks({
+      overdueBefore: todayISO,
+      statusIn: ["NOT_STARTED", "IN_PROGRESS"],
+    }).then((data) => {
+      if (!cancelled) setOverdueTasks(data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   function shiftWeek(deltaDays: number) {
     const base = getMonday(parseISO(weekStartISO));
     setWeekStartISO(formatISO(addDays(base, deltaDays)));
   }
 
-  const dayTasks = tasks.filter((t) => t.day === selectedDay);
+  const dayTasks = useMemo(() => {
+    const own = tasks.filter((t) => t.day === selectedDay);
+    if (!isTodayTab) return own;
+    const ids = new Set(own.map((t) => t.id));
+    const carried = overdueTasks.filter((t) => !ids.has(t.id));
+    return [...carried, ...own];
+  }, [tasks, overdueTasks, selectedDay, isTodayTab]);
 
   function tasksByStatus(status: Status) {
     return dayTasks.filter((t) => t.status === status);
   }
 
   function countFor(day: Day) {
-    return tasks.filter((t) => t.day === day).length;
+    const base = tasks.filter((t) => t.day === day).length;
+    if (isCurrentWeek && day === todayDay()) return base + overdueTasks.length;
+    return base;
   }
 
   function dateFor(day: Day) {
     const iso = taskDateISO(weekStartISO, day);
     const d = parseISO(iso);
     return `${d.getMonth() + 1}/${d.getDate()}`;
+  }
+
+  function overdueLabelFor(task: Task): string | undefined {
+    if (!isTodayTab) return undefined;
+    const iso = taskDateISO(task.weekStart, task.day);
+    if (iso >= todayISO) return undefined;
+    const d = parseISO(iso);
+    return `${d.getMonth() + 1}/${d.getDate()}부터`;
   }
 
   async function handleAdd(content: string) {
@@ -76,24 +111,9 @@ export default function BoardPage() {
     setTasks((prev) => [...prev, task]);
   }
 
-  async function handleDropTask(id: string, status: Status) {
-    const target = tasks.find((t) => t.id === id);
-    if (!target || target.status === status) return;
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status } : t)));
-    try {
-      const updated = await patchTask(id, { status });
-      setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)));
-    } catch {
-      setTasks((prev) => prev.map((t) => (t.id === id ? target : t)));
-    }
-  }
-
-  function handleChange(updated: Task) {
-    setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-  }
-
   function handleRemove(id: string) {
     setTasks((prev) => prev.filter((t) => t.id !== id));
+    setOverdueTasks((prev) => prev.filter((t) => t.id !== id));
   }
 
   return (
@@ -131,9 +151,8 @@ export default function BoardPage() {
               key={status}
               status={status}
               tasks={tasksByStatus(status)}
-              onDropTask={handleDropTask}
-              onChange={handleChange}
               onRemove={handleRemove}
+              overdueLabelFor={overdueLabelFor}
             />
           ))}
         </div>

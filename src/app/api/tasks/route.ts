@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createTask, listTasks } from "@/lib/db";
-import { DAYS } from "@/lib/types";
+import { DAYS, STATUSES } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -9,8 +9,17 @@ export async function GET(req: NextRequest) {
   const weekStart = searchParams.get("weekStart") ?? undefined;
   const weeksParam = searchParams.get("weeks");
   const weekStartIn = weeksParam ? weeksParam.split(",").filter(Boolean) : undefined;
+  const overdueBefore = searchParams.get("overdueBefore") ?? undefined;
+  const statusInParam = searchParams.get("statusIn");
+  const statusIn = statusInParam
+    ? statusInParam
+        .split(",")
+        .filter((s): s is (typeof STATUSES)[number] =>
+          (STATUSES as readonly string[]).includes(s)
+        )
+    : undefined;
 
-  const tasks = await listTasks({ weekStart, weekStartIn });
+  const tasks = await listTasks({ weekStart, weekStartIn, overdueBefore, statusIn });
   return NextResponse.json({ tasks });
 }
 

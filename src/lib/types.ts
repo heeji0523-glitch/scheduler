@@ -28,6 +28,8 @@ export interface Task {
   weekStart: string;
   status: Status;
   author: string;
+  /** Free-form notes, edited from the task detail page. */
+  memo: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -43,4 +45,5 @@ export type TaskUpdate = Partial<{
   content: string;
   day: Day;
   status: Status;
+  memo: string;
 }>;

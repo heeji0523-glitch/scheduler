@@ -17,13 +17,23 @@ async function handle(res: Response) {
 export async function fetchTasks(params: {
   weekStart?: string;
   weeks?: string[];
+  overdueBefore?: string;
+  statusIn?: Status[];
 }): Promise<Task[]> {
   const usp = new URLSearchParams();
   if (params.weekStart) usp.set("weekStart", params.weekStart);
   if (params.weeks && params.weeks.length) usp.set("weeks", params.weeks.join(","));
+  if (params.overdueBefore) usp.set("overdueBefore", params.overdueBefore);
+  if (params.statusIn && params.statusIn.length) usp.set("statusIn", params.statusIn.join(","));
   const res = await fetch(`/api/tasks?${usp.toString()}`, { cache: "no-store" });
   const data = await handle(res);
   return data.tasks as Task[];
+}
+
+export async function fetchTask(id: string): Promise<Task> {
+  const res = await fetch(`/api/tasks/${id}`, { cache: "no-store" });
+  const data = await handle(res);
+  return data.task as Task;
 }
 
 export async function createTask(input: {
@@ -43,7 +53,7 @@ export async function createTask(input: {
 
 export async function patchTask(
   id: string,
-  patch: Partial<{ content: string; day: Day; status: Status }>
+  patch: Partial<{ content: string; day: Day; status: Status; memo: string }>
 ): Promise<Task> {
   const res = await fetch(`/api/tasks/${id}`, {
     method: "PATCH",

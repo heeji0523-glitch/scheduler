@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { deleteTask, updateTask } from "@/lib/db";
+import { deleteTask, getTask, updateTask } from "@/lib/db";
 import { DAYS, STATUSES } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const task = await getTask(params.id);
+  if (!task) {
+    return NextResponse.json({ error: "할일을 찾을 수 없습니다." }, { status: 404 });
+  }
+  return NextResponse.json({ task });
+}
 
 export async function PATCH(
   req: NextRequest,
@@ -15,8 +26,13 @@ export async function PATCH(
     return NextResponse.json({ error: "잘못된 요청 본문입니다." }, { status: 400 });
   }
 
-  const { content, day, status } = (body ?? {}) as Record<string, unknown>;
-  const patch: { content?: string; day?: (typeof DAYS)[number]; status?: (typeof STATUSES)[number] } = {};
+  const { content, day, status, memo } = (body ?? {}) as Record<string, unknown>;
+  const patch: {
+    content?: string;
+    day?: (typeof DAYS)[number];
+    status?: (typeof STATUSES)[number];
+    memo?: string;
+  } = {};
 
   if (content !== undefined) {
     if (typeof content !== "string" || !content.trim()) {
@@ -35,6 +51,12 @@ export async function PATCH(
       return NextResponse.json({ error: "상태 값이 올바르지 않습니다." }, { status: 400 });
     }
     patch.status = status as (typeof STATUSES)[number];
+  }
+  if (memo !== undefined) {
+    if (typeof memo !== "string") {
+      return NextResponse.json({ error: "메모 값이 올바르지 않습니다." }, { status: 400 });
+    }
+    patch.memo = memo;
   }
 
   const task = await updateTask(params.id, patch);

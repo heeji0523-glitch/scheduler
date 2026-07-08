@@ -1,5 +1,6 @@
-import { Task, TaskInput, TaskUpdate } from "./types";
+import { Status, Task, TaskInput, TaskUpdate } from "./types";
 import { readAll, writeAll } from "./store";
+import { taskDateISO } from "./week";
 
 // Storage-agnostic task repository. The actual backend (local JSON file vs.
 // Upstash/Vercel KV) is chosen in ./store based on environment variables.
@@ -26,11 +27,19 @@ function genId(): string {
   return `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+/** Fills in defaults for fields added after some tasks were already stored. */
+function normalize(task: Task): Task {
+  return { ...task, memo: task.memo ?? "" };
+}
+
 export async function listTasks(filter?: {
   weekStart?: string;
   weekStartIn?: string[];
+  /** Only tasks whose actual calendar date is strictly before this yyyy-MM-dd. */
+  overdueBefore?: string;
+  statusIn?: Status[];
 }): Promise<Task[]> {
-  const tasks = await readAll();
+  const tasks = (await readAll()).map(normalize);
   let result = tasks;
   if (filter?.weekStart) {
     result = result.filter((t) => t.weekStart === filter.weekStart);
@@ -39,7 +48,20 @@ export async function listTasks(filter?: {
     const set = new Set(filter.weekStartIn);
     result = result.filter((t) => set.has(t.weekStart));
   }
+  if (filter?.overdueBefore) {
+    result = result.filter((t) => taskDateISO(t.weekStart, t.day) < filter.overdueBefore!);
+  }
+  if (filter?.statusIn) {
+    const set = new Set(filter.statusIn);
+    result = result.filter((t) => set.has(t.status));
+  }
   return result.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export async function getTask(id: string): Promise<Task | null> {
+  const tasks = await readAll();
+  const found = tasks.find((t) => t.id === id);
+  return found ? normalize(found) : null;
 }
 
 export async function createTask(input: TaskInput): Promise<Task> {
@@ -52,6 +74,7 @@ export async function createTask(input: TaskInput): Promise<Task> {
       weekStart: input.weekStart,
       status: "NOT_STARTED",
       author: input.author.trim() || "익명",
+      memo: "",
       createdAt: now,
       updatedAt: now,
     };
@@ -69,7 +92,7 @@ export async function updateTask(
     const idx = tasks.findIndex((t) => t.id === id);
     if (idx === -1) return null;
     const updated: Task = {
-      ...tasks[idx],
+      ...normalize(tasks[idx]),
       ...patch,
       updatedAt: new Date().toISOString(),
     };
